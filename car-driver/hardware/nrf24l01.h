@@ -102,7 +102,7 @@ u8   NRF24L01_Read_Reg(u8 reg);
 /**
 * Write a 1-byte register
 */
-u8   NRF24L01_Write_Reg(u8 reg,u8 value);
+u8   NRF24L01_Write_Reg(u8 reg, u8 value);
 
 /**
 * Read a multi-byte register
@@ -110,7 +110,7 @@ u8   NRF24L01_Write_Reg(u8 reg,u8 value);
 *  buf - pointer to the buffer to write
 *  len - number of bytes to read
 */
-u8   NRF24L01_Read_To_Buf(u8 reg,u8 *pBuf,u8 len);
+u8   NRF24L01_Read_To_Buf(u8 reg, u8 *pBuf,u8 len);
 
 /**
 * Write a multi-byte register
@@ -118,7 +118,7 @@ u8   NRF24L01_Read_To_Buf(u8 reg,u8 *pBuf,u8 len);
 *  buf - pointer to the buffer with data
 *  len - number of bytes to write
 */
-u8   NRF24L01_Write_From_Buf(u8 reg,u8 *pBuf,u8 len);
+u8   NRF24L01_Write_From_Buf(u8 reg, u8 *pBuf,u8 len);
 
 /**
 * Hold till data received and written to rx_buf

@@ -130,8 +130,8 @@ void TIM3_Init(void)
   TIM_DeInit(TIM3);
 
   TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-  TIM_TimeBaseStructure.TIM_Prescaler =(SystemCoreClock / 200000); // -> 200KHz
-  TIM_TimeBaseStructure.TIM_Period = 5000 - 1; // 200KHz -> 1/200K -> 1/200K * 5000 = 1/40 s = 25ms
+  TIM_TimeBaseStructure.TIM_Prescaler =(SystemCoreClock / 2000); // -> 2KHz
+  TIM_TimeBaseStructure.TIM_Period = 4000 - 1; // 2KHz -> 1/2K -> 1/2K * 4000 = 2s
   TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
   TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
   TIM_TimeBaseInit(TIM3,&TIM_TimeBaseStructure);
@@ -145,11 +145,17 @@ void TIM3_Init(void)
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
-  
-  // This will be enabled in USART2_IRQHandler(), 
-  // if it be enabled here, it will introduce an extra count 
-  // TIM_Cmd(TIM3, ENABLE); 
+  //TIM_Cmd(TIM3, ENABLE);
   
   printf("## TIM3 Initialized ##\r\n");
 }
 
+
+void TIM_ResetCounter(TIM_TypeDef* TIMx)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_ALL_PERIPH(TIMx));
+
+  /* Reset the Counter Register value */
+  TIMx->CNT = 0;
+}
