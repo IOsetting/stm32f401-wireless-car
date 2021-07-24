@@ -40,6 +40,7 @@ int main(void)
   ADC_Initialize();
 
   while(1) {
+    // Calculate the average value of X and Y
     u16 axis_x = 0, axis_y = 0;
     for (u8 i = 0; i < ARRAYSIZE / 2; i++) {
       axis_x += *(ADCConvertedValue + i*2) / 16;
@@ -48,7 +49,7 @@ int main(void)
     axis_x = (axis_x * 2) / ARRAYSIZE;
     axis_y = (axis_y * 2) / ARRAYSIZE;
     printf("% 5d, % 5d\r\n", axis_x, axis_y);
-    //NRF24L01_DumpConfig();
+
     u8 tmp[] = {0x02, (u8)axis_x, (u8)axis_y};
     u8 status = NRF24L01_TxPacket(tmp, 32);
     if(status & NRF24L01_FLAG_TX_DSENT) {

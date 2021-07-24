@@ -13,4 +13,6 @@
 #define NRF24L01_GPIO_CE  GPIO_Pin_14
 #define NRF24L01_GPIO_CSN GPIO_Pin_15
 
+#define NRF24L01_INT_MODE 0
+
 #endif

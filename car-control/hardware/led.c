@@ -16,6 +16,7 @@ void LED_Init(void)
 	gpioInitTypeDef.GPIO_OType = GPIO_OType_PP;
 	gpioInitTypeDef.GPIO_Speed = GPIO_High_Speed;
 	GPIO_Init(LED_GPIOx, &gpioInitTypeDef);
+  GPIO_SetBits(LED_GPIOx, LED_GPIO_PIN);
   printf("## LED Initialized ##\r\n");
 }
 

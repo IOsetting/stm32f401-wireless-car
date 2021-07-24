@@ -5,7 +5,38 @@
 u8 RX_BUF[NRF24L01_PLOAD_WIDTH];
 u8 TX_BUF[NRF24L01_PLOAD_WIDTH];
 
-static void NRF24L01_SPI_Init()
+void NRF24L01_SPI_Init(void);
+void NRF24L01_EXTILine_Config(void);
+
+void NRF24L01_Init(void)
+{
+  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+  
+  GPIO_InitTypeDef GPIO_InitStructure;
+  GPIO_InitStructure.GPIO_Pin = NRF24L01_GPIO_CE|NRF24L01_GPIO_CSN;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_Init(NRF24L01_GPIOx, &GPIO_InitStructure);
+  // IRQ Initialize
+  if (NRF24L01_INT_MODE) { 
+    NRF24L01_EXTILine_Config();
+  } else {
+    GPIO_InitStructure.GPIO_Pin = NRF24L01_GPIO_IRQ;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
+    GPIO_Init(NRF24L01_GPIOx, &GPIO_InitStructure);
+  }
+  NRF24L01_SPI_Init();
+  /*
+    CSN is high initially (active low).
+    CE is low initially (active high).
+  */
+  CSN(1);
+  printf("## nRF24L01 Initialized ##\r\n");
+}
+
+void NRF24L01_SPI_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStructure;
 
@@ -51,32 +82,36 @@ static void NRF24L01_SPI_Init()
 	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; // set the NSS management to internal and pull internal NSS high
 	SPI_Init(NRF24L01_SPIx, &SPI_InitStructure);
 	SPI_Cmd(NRF24L01_SPIx, ENABLE);
-
 }
 
-void NRF24L01_Init(void)
+void NRF24L01_EXTILine_Config(void)
 {
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-  
-  GPIO_InitTypeDef GPIO_InitStructure;
-  GPIO_InitStructure.GPIO_Pin = NRF24L01_GPIO_CE|NRF24L01_GPIO_CSN;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(NRF24L01_GPIOx, &GPIO_InitStructure);
-  // IRQ Initialize
-  GPIO_InitStructure.GPIO_Pin = NRF24L01_GPIO_IRQ;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
-  GPIO_Init(NRF24L01_GPIOx, &GPIO_InitStructure);
+  /* Enable SYSCFG clock */
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
 
-  NRF24L01_SPI_Init();
-  /*
-    CSN is high initially (active low).
-    CE is low initially (active high).
-  */
-  CSN(1);
-  printf("## nRF24L01 Initialized ##\r\n");
+  GPIO_InitTypeDef   GPIO_InitStructure;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_13;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
+  
+  /* Connect EXTI Line13 to PG13 pin */
+  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB, EXTI_PinSource13);
+  
+  EXTI_InitTypeDef   EXTI_InitStructure;
+  EXTI_InitStructure.EXTI_Line    = EXTI_Line13;
+  EXTI_InitStructure.EXTI_Mode    = EXTI_Mode_Interrupt;
+  EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+  EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+  EXTI_Init(&EXTI_InitStructure);
+  
+  NVIC_InitTypeDef   NVIC_InitStructure;
+  NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x01; 
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x01;
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init(&NVIC_InitStructure);
 }
 
 /**
@@ -296,6 +331,7 @@ u8 NRF24L01_RxPacket(u8 *rx_buf)
       printf("%02X ", RX_BUF[i]);
     }
     result = 1;
+    NRF24L01_FlushRX();
     NRF24L01_ClearIRQFlag(NRF24L01_FLAG_RX_DREADY);
   }
   CE(1);
@@ -331,6 +367,37 @@ u8 NRF24L01_TxPacket(u8 *tx_buf, u8 len)
   }
   CE(1);
   return status;
+}
+
+/**
+* Read received data and written to rx_buf, No blocking.
+*/
+u8 NRF24L01_IRQ_Handler(u8 *rx_buf)
+{
+  u8 status, result = 0;
+  CE(0);
+  status = NRF24L01_Read_Reg(NRF24L01_REG_STATUS);
+  printf("Reg status: %02X\r\n", status);
+  if(status & NRF24L01_FLAG_RX_DREADY) {
+    NRF24L01_Read_To_Buf(NRF24L01_CMD_RX_PLOAD_R, rx_buf, NRF24L01_PLOAD_WIDTH);
+    for (int i = 0; i < 32; i++) {
+      printf("%02X ", RX_BUF[i]);
+    }
+    result = 1;
+    NRF24L01_FlushRX();
+    NRF24L01_ClearIRQFlag(NRF24L01_FLAG_RX_DREADY);
+
+  } else if(status & NRF24L01_FLAG_TX_DSENT) {
+    printf("Data sent\r\n");
+    NRF24L01_FlushTX();
+    NRF24L01_ClearIRQFlag(NRF24L01_FLAG_TX_DSENT);
+  } else if(status & NRF24L01_FLAG_MAX_RT) {
+    printf("Sending exceeds max retries\r\n");
+    NRF24L01_FlushTX();
+    NRF24L01_ClearIRQFlag(NRF24L01_FLAG_MAX_RT);
+  }
+  CE(1);
+  return result;
 }
 
 
