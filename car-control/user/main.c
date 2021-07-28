@@ -10,8 +10,8 @@
 #include "nrf24l01.h"
 #include "adc.h"
 
-u8 RX_ADDRESS[NRF24L01_ADDR_WIDTH] = {0x32,0x4E,0x6F,0x64,0x65};
-u8 TX_ADDRESS[NRF24L01_ADDR_WIDTH] = {0x11,0x22,0x33,0x44,0x55};
+u8 RX_ADDRESS[NRF24L01_ADDR_WIDTH] = {0x11,0x22,0x33,0x44,0x55};
+u8 TX_ADDRESS[NRF24L01_ADDR_WIDTH] = {0x32,0x4E,0x6F,0x64,0x65};
 
 extern u8 RX_BUF[];
 extern u8 TX_BUF[];
@@ -40,6 +40,7 @@ int main(void)
   ADC_Initialize();
 
   while(1) {
+    NRF24L01_DumpConfig();
     // Calculate the average value of X and Y
     u16 axis_x = 0, axis_y = 0;
     for (u8 i = 0; i < ARRAYSIZE / 2; i++) {
@@ -48,7 +49,7 @@ int main(void)
     }
     axis_x = (axis_x * 2) / ARRAYSIZE;
     axis_y = (axis_y * 2) / ARRAYSIZE;
-    printf("% 5d, % 5d\r\n", axis_x, axis_y);
+    printf("%X, %X\r\n", axis_x, axis_y);
 
     u8 tmp[] = {0x02, (u8)axis_x, (u8)axis_y};
     u8 status = NRF24L01_TxPacket(tmp, 32);
