@@ -11,25 +11,49 @@
 extern u8 RX_BUF[];
 extern u8 TX_BUF[];
 
-u16 TimerPeriod = 0;
-u16 Channel1Pulse = 0, Channel2Pulse = 0, Channel3Pulse = 0, Channel4Pulse = 0;
+/*
+TargetFrequency = 50
+SystemCoreClock = 84MHz = 84,000,000
+
+so
+TotalDivider = SystemCoreClock/TargetFrequency = 1,680,000
+
+so
+TIM_Prescaler = 1,680,000 / 65535 - 1 = 25.6 - 1 = 25, make it 29
+
+so 
+ScaledFrequency = 84,000,000 / (29 + 1) = 2,800,000
+
+because
+PWM_frequency = timer_tick_frequency / (TIM_Period + 1)
+so
+50 = 2,800,000 / (TIM_Period + 1),
+(TIM_Period + 1) = 2,800,000/50 = 56,000,
+TIM_Period = 55999
+*/
+u16 TimerPeriod = 55999;
+u32 Channel1Pulse = 0, Channel2Pulse = 0, Channel3Pulse = 0, Channel4Pulse = 0;
 u8  center_d = 5;
 
-u16 CalcPuls(u8 val) {
-  u16 output = (u16) (((u32) val * (TimerPeriod - 1)) / 127);
+u32 CalcPuls(u8 val)
+{
+  u32 output = ((u32) val * TimerPeriod) / 127;
   return output;
 }
 
-void InitChannelPuls(void) {
-  /* Compute the value to be set in ARR register to generate signal frequency at 17.57 Khz */
-  TimerPeriod = (SystemCoreClock / 17570 ) - 1;
-  Channel1Pulse = CalcPuls(0);
-  Channel2Pulse = CalcPuls(0);
-  Channel3Pulse = CalcPuls(0);
-  Channel4Pulse = CalcPuls(0);
+void InitChannelPuls(void) 
+{
+  Channel1Pulse = 0;
+  Channel2Pulse = 0;
+  Channel3Pulse = 0;
+  Channel4Pulse = 0;
+  TIM_SetCompare1(TIM2, Channel1Pulse);
+  TIM_SetCompare2(TIM2, Channel2Pulse);
+  TIM_SetCompare3(TIM2, Channel3Pulse);
+  TIM_SetCompare4(TIM2, Channel4Pulse);
 }
 
-void calc(u8 inx, u8 iny, int8_t *l, int8_t *r)
+void XY2LR(u8 inx, u8 iny, int8_t *l, int8_t *r)
 {
   // int8_t only support [-128, 127]
   if (inx == 255) inx = 254;
@@ -119,7 +143,6 @@ void calc(u8 inx, u8 iny, int8_t *l, int8_t *r)
     }
 
   }
-  
 }
 
 /*
@@ -129,38 +152,72 @@ void calc(u8 inx, u8 iny, int8_t *l, int8_t *r)
 左转: X小,Y中
 右转: X大,Y中
 */
-void AdjustChannelPuls(u8 axis_x, u8 axis_y) {
+void AdjustChannelPuls(u8 axis_x, u8 axis_y)
+{
   int8_t l, r;
-  calc(axis_x, axis_y, &l, &r);
+  // Revert Y value to standard XY directions
+  axis_y = 255 - axis_y;
+  // Transform XY to LR
+  XY2LR(axis_x, axis_y, &l, &r);
   printf("X:%d, Y:%d, L:%d, R:%d\r\n", axis_x, axis_y, l, r);
+  // PauseFlag indicates direction changed or not
+  u8 PauseFlag = 0;
   if (l >= 0) {
     Channel1Pulse = CalcPuls(l);
-    Channel3Pulse = CalcPuls(0);
+    if (Channel3Pulse > 0) {
+      PauseFlag = 1;
+    }
+    Channel3Pulse = 0;
+    // Set the PWM:0 channel first
+    TIM_SetCompare3(TIM2, Channel3Pulse);
   } else {
-    Channel1Pulse = CalcPuls(0);
+    if (Channel1Pulse > 0) {
+      PauseFlag = 1;
+    }
+    Channel1Pulse = 0;
     Channel3Pulse = CalcPuls(-l);
+    TIM_SetCompare1(TIM2, Channel1Pulse);
   }
   if (r >= 0) {
     Channel2Pulse = CalcPuls(r);
-    Channel4Pulse = CalcPuls(0);
+    if (Channel4Pulse > 0) {
+      PauseFlag = 1;
+    }
+    Channel4Pulse = 0;
+    TIM_SetCompare4(TIM2, Channel4Pulse);
   } else {
-    Channel2Pulse = CalcPuls(0);
+    if (Channel2Pulse > 0) {
+      PauseFlag = 1;
+    }
+    Channel2Pulse = 0;
     Channel4Pulse = CalcPuls(-r);
+    TIM_SetCompare2(TIM2, Channel2Pulse);
   }
+
+  if (PauseFlag == 1) {
+    Systick_Delay_ms(1);
+  }
+
+  if (l >= 0) {
+    TIM_SetCompare1(TIM2, Channel1Pulse);
+  } else {
+    TIM_SetCompare3(TIM2, Channel3Pulse);
+  }
+  if (r >= 0) {
+    TIM_SetCompare2(TIM2, Channel2Pulse);
+  } else {
+    TIM_SetCompare4(TIM2, Channel4Pulse);
+  }
+
   TIM_ResetCounter(TIM3);
 }
 
-void UpdatePWM(void) {
-  TIM_SetCompare1(TIM2, Channel1Pulse);
-  TIM_SetCompare2(TIM2, Channel2Pulse);
-  TIM_SetCompare3(TIM2, Channel3Pulse);
-  TIM_SetCompare4(TIM2, Channel4Pulse);
-}
 
 /**
 * Handle NRF24L01 Messages
 */
-void EXTI15_10_IRQHandler(void) {
+void EXTI15_10_IRQHandler(void) 
+{
   LED_On();
   /* Make sure that interrupt flag is set */
   if (EXTI_GetITStatus(EXTI_Line13) != RESET) {
@@ -168,13 +225,24 @@ void EXTI15_10_IRQHandler(void) {
     if (RX_BUF[0] == 0x02) { // Ensure it is a valid input
       AdjustChannelPuls(RX_BUF[1], RX_BUF[2]);
       printf("TP:%d, CH1/CH3:%d/%d, CH2/CH4:%d/%d\r\n", TimerPeriod, Channel1Pulse, Channel3Pulse, Channel2Pulse, Channel4Pulse);
-      UpdatePWM();
     }
     /* Clear interrupt flag */
     EXTI_ClearITPendingBit(EXTI_Line13);
   }
   LED_Off();
 }
+
+/**
+* Reset to initial state after certain period
+*/
+void TIM3_IRQHandler(void)
+{
+  if(TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET) {
+    InitChannelPuls();
+  }
+  TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
+}
+
 
 void TIM_GPIO_Config(void)
 {
@@ -204,8 +272,41 @@ void TIM_PWM_Init(void)
 
   /* Time Base configuration */
   TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
-  TIM_TimeBaseStructure.TIM_Prescaler = 0;
+  /*
+    TIM2 is connected to APB1 bus, which has on F401 device 42MHz clock, but, timer has internal PLL, which double this frequency for timer, up to 84MHz.
+    Remember: Not each timer is connected to APB1, there are also timers connected on APB2, which works at 84MHz by default, and internal PLL increase this to up to 168MHz.
+
+    Set timer prescaller
+    Timer count frequency is set with
+
+    timer_tick_frequency = Timer_default_frequency / (prescaller_set + 1)
+
+    In our case, we want a max frequency for timer, so we set prescaller to 0
+    And our timer will have tick frequency
+
+    timer_tick_frequency = 84000000 / (0 + 1) = 84000000
+  */
+  TIM_TimeBaseStructure.TIM_Prescaler = 29;
   TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+  /*
+    Set timer period when it have reset
+    First you have to know max value for timer
+    In our case it is 16bit = 65535
+    To get your frequency for PWM, equation is simple
+
+    PWM_frequency = timer_tick_frequency / (TIM_Period + 1)
+
+    If you know your PWM frequency you want to have timer period set correct
+
+    TIM_Period = timer_tick_frequency / PWM_frequency - 1
+
+    In our case, for 10Khz PWM_frequency, set Period to
+
+    TIM_Period = 84000000 / 10000 - 1 = 8399
+
+    If you get TIM_Period larger than max timer value (in our case 65535),
+    you have to choose larger prescaler and slow down timer tick frequency
+  */
   TIM_TimeBaseStructure.TIM_Period = TimerPeriod;
   TIM_TimeBaseStructure.TIM_ClockDivision = 0;
   //TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
@@ -242,18 +343,6 @@ void TIM_PWM_Init(void)
   TIM_Cmd(TIM2, ENABLE);
 }
 
-/**
-* Reset to initial state after 2 seconds
-*/
-void TIM3_IRQHandler(void)
-{
-  if(TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET) {
-    InitChannelPuls();
-    UpdatePWM();
-  }
-  TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
-}
-
 
 int main(void)
 {
@@ -267,7 +356,6 @@ int main(void)
   InitChannelPuls();
   TIM_GPIO_Config();
   TIM_PWM_Init();
-  UpdatePWM();
 
   // nRF24L01
   NRF24L01_Init();
