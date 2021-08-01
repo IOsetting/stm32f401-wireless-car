@@ -131,7 +131,7 @@ void TIM3_Init(void)
 
   TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
   TIM_TimeBaseStructure.TIM_Prescaler =(SystemCoreClock / 2000); // -> 2KHz
-  TIM_TimeBaseStructure.TIM_Period = 1500 - 1; // 2KHz -> 1/2K -> 1/2K * 1500 = 0.75s
+  TIM_TimeBaseStructure.TIM_Period = 1000 - 1; // 2KHz -> 1/2K -> 1/2K * 1500 = 0.5s
   TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
   TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
   TIM_TimeBaseInit(TIM3,&TIM_TimeBaseStructure);

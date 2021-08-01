@@ -40,7 +40,8 @@ int main(void)
   ADC_Initialize();
 
   while(1) {
-    NRF24L01_DumpConfig();
+    u8 tor = 5;
+    //NRF24L01_DumpConfig();
     // Calculate the average value of X and Y
     u16 axis_x = 0, axis_y = 0;
     for (u8 i = 0; i < ARRAYSIZE / 2; i++) {
@@ -50,16 +51,23 @@ int main(void)
     axis_x = (axis_x * 2) / ARRAYSIZE;
     axis_y = (axis_y * 2) / ARRAYSIZE;
     printf("%X, %X\r\n", axis_x, axis_y);
+    if (axis_x >= 0x7f - tor && axis_x <= 0x7f + tor
+      && axis_y >= 0x7f - tor && axis_y <= 0x7f + tor) {
+
+      printf("skipped\r\n");
+      Systick_Delay_ms(200);
+      continue;
+    }
 
     u8 tmp[] = {0x02, (u8)axis_x, (u8)axis_y};
     u8 status = NRF24L01_TxPacket(tmp, 32);
     if(status & NRF24L01_FLAG_TX_DSENT) {
       LED_On();
-      Systick_Delay_ms(100);
-      LED_Off();
-      Systick_Delay_ms(100);
-    } else {
       Systick_Delay_ms(200);
+      LED_Off();
+      Systick_Delay_ms(200);
+    } else {
+      Systick_Delay_ms(400);
     }
   }
 }

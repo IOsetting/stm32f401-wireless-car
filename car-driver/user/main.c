@@ -160,42 +160,24 @@ void AdjustChannelPuls(u8 axis_x, u8 axis_y)
   // Transform XY to LR
   XY2LR(axis_x, axis_y, &l, &r);
   printf("X:%d, Y:%d, L:%d, R:%d\r\n", axis_x, axis_y, l, r);
-  // PauseFlag indicates direction changed or not
-  u8 PauseFlag = 0;
   if (l >= 0) {
     Channel1Pulse = CalcPuls(l);
-    if (Channel3Pulse > 0) {
-      PauseFlag = 1;
-    }
     Channel3Pulse = 0;
     // Set the PWM:0 channel first
     TIM_SetCompare3(TIM2, Channel3Pulse);
   } else {
-    if (Channel1Pulse > 0) {
-      PauseFlag = 1;
-    }
     Channel1Pulse = 0;
     Channel3Pulse = CalcPuls(-l);
     TIM_SetCompare1(TIM2, Channel1Pulse);
   }
   if (r >= 0) {
     Channel2Pulse = CalcPuls(r);
-    if (Channel4Pulse > 0) {
-      PauseFlag = 1;
-    }
     Channel4Pulse = 0;
     TIM_SetCompare4(TIM2, Channel4Pulse);
   } else {
-    if (Channel2Pulse > 0) {
-      PauseFlag = 1;
-    }
     Channel2Pulse = 0;
     Channel4Pulse = CalcPuls(-r);
     TIM_SetCompare2(TIM2, Channel2Pulse);
-  }
-
-  if (PauseFlag == 1) {
-    Systick_Delay_ms(1);
   }
 
   if (l >= 0) {
