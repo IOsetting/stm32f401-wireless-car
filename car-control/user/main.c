@@ -55,7 +55,7 @@ int main(void)
       && axis_y >= 0x7f - tor && axis_y <= 0x7f + tor) {
 
       printf("skipped\r\n");
-      Systick_Delay_ms(200);
+      Systick_Delay_ms(64);
       continue;
     }
 
@@ -63,11 +63,11 @@ int main(void)
     u8 status = NRF24L01_TxPacket(tmp, 32);
     if(status & NRF24L01_FLAG_TX_DSENT) {
       LED_On();
-      Systick_Delay_ms(200);
+      Systick_Delay_ms(16);
       LED_Off();
-      Systick_Delay_ms(200);
+      Systick_Delay_ms(48);
     } else {
-      Systick_Delay_ms(400);
+      Systick_Delay_ms(64);
     }
   }
 }

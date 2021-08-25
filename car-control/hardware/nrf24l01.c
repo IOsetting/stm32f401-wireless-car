@@ -350,7 +350,6 @@ u8 NRF24L01_TxPacket(u8 *tx_buf, u8 len)
   CE(1);
   while(IRQ != 0); // Waiting send finish
 
-  CE(0);
   status = NRF24L01_Read_Reg(NRF24L01_REG_STATUS);
   printf("Interrupted, status: %02X\r\n", status);
   if(status & NRF24L01_FLAG_TX_DSENT) {
@@ -365,7 +364,6 @@ u8 NRF24L01_TxPacket(u8 *tx_buf, u8 len)
     NRF24L01_FlushTX();
     NRF24L01_ClearIRQFlag(NRF24L01_FLAG_MAX_RT);
   }
-  CE(1);
   return status;
 }
 
